@@ -1,7 +1,6 @@
 import { prisma } from '@/prisma/client';
 import { NextRequest, NextResponse } from "next/server";
 import schema from "@/app/api/users/schema";
-import {param} from "ts-interface-checker";
 
 export async function GET (req: NextRequest) {
   // GET LIST OF USER
@@ -15,7 +14,6 @@ export async function POST (req: NextRequest) {
 
   // VALIDATE DATA
   const validation = schema.safeParse(body)
-
   if (!validation.success) {
     return NextResponse.json(validation.error.errors, { status: 400 });
   }
@@ -33,9 +31,9 @@ export async function POST (req: NextRequest) {
     const hash = await bcrypt.hash(body.password, 0)
     const newUser = await prisma.user.create({
       data: {
-        first_name: body.first_name,
-        last_name: body.last_name,
+        name: body.name,
         email: body.email,
+        // @ts-ignore
         password: hash,
       }
     })

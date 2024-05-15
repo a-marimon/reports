@@ -1,14 +1,12 @@
-'use client'
-import {useSession} from "next-auth/react";
+import {getServerSession} from "next-auth";
+import {authOptions} from "@/app/api/auth/[...nextauth]/route";
 
-export default function Home() {
-  const { status, data: session } = useSession();
-
-  if (status === "authenticated") {
-    return <div>Unauthenticated</div>
-  }
+export default async function Home() {
+  const session = await getServerSession(authOptions)
 
   return (
-    <>hello</>
+    <main>
+      Hello { session && session.user!.name}
+    </main>
   );
 }

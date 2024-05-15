@@ -1,62 +1,60 @@
-import NextAuth from "next-auth";
+import NextAuth, {NextAuthOptions} from "next-auth";
+import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials";
-import {PrismaClient} from "@prisma/client";
-import Error from "next/error";
+import {PrismaAdapter} from "@auth/prisma-adapter";
+import {prisma} from "@/prisma/client";
 
-const prisma = new PrismaClient()
-const bcrypt = require("bcrypt");
-
-const confirmPasswordHash = ( plainPassword: string, hashPassword: string ) => {
-  return new Promise( resolve => {
-    bcrypt.compare(plainPassword, hashPassword, (error: any, respomse: any) => {
-      resolve(respomse)
-    })
-  })
-}
-
-export const authOptions = {
-  // adapter: PrismaAdapter(prisma),
+export const authOptions: NextAuthOptions = {
+  // @ts-ignore
+  adapter: PrismaAdapter(prisma),
   providers: [
-    // GoogleProvider({
-    //   clientId: process.env.GOOGLE_CLIENT_ID!,
-    //   clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    // }),
-
     CredentialsProvider({
-
-      name: "Credentials",
+      name: 'Credentials',
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "Email" },
-        password: { label: "Password", type: "password" }
+        email: { label: 'Email', type: 'email', placeholder: 'Email'},
+        password: { label: 'Password', type: 'password', placeholder: 'Password'},
       },
-      async authorize(credentials) {
-        const user = await prisma.user.findFirst({
+      async authorize( credentials, req){
+        if (!credentials?.email || !credentials.password) return null
+        const bcrypt = require('bcrypt');
+
+        const user = await prisma.user.findUnique({
           where: {
-            email: credentials!.email
+            email: credentials.email
           }
         })
 
-        if (user) {
-          const valid = await confirmPasswordHash(credentials!.password, user.password)
-          if (valid) {
-            return user
-          }
-          else {
-            console.log("Hash not matched logging in");
-            return null;
-          }
-        } else {
-          return null
-        }
+        if (!user) return null
 
+        const passwordMatched = await bcrypt.compare(credentials.password, user.hashedPassword!)
+
+        return passwordMatched ? user : null
       }
+    }),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     })
   ],
-  pages: {
-    signIn: "/auth/signin",
-  }
+  callbacks: {
+    session: async ({ session, token }) => {
+      if (session?.user) {
+        session.user.id = token.sub;
+      }
+      return session;
+    },
+    jwt: async ({ user, token }) => {
+      if (user) {
+        token.uid = user.id;
+      }
+      return token;
+    },
+  },
+  session: {
+    strategy:"jwt",
+  },
 }
 
-const handler = NextAuth(authOptions)
+const handler = NextAuth(authOptions);
 
-export { handler as GET, handler as POST };
+export { handler as GET, handler as POST }
